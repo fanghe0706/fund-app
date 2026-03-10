@@ -8,9 +8,9 @@ import { useFundStore } from '@/stores/fund'
 import { useAlertStore, ALERT_TYPE_CONFIG, type AlertType } from '@/stores/alert'
 import { fetchMarketIndicesFast, fetchGlobalIndices, type MarketIndexSimple, type GlobalIndex } from '@/api/fundFast'
 import { fetchFinanceNews, type NewsItem, getTradingSession, type TradingSession } from '@/api/tiantianApi'
-import { 
-  fetchRemoteConfig, 
-  getActiveAnnouncements, 
+import {
+  fetchRemoteConfig,
+  getActiveAnnouncements,
   markAnnouncementShown,
   checkNeedUpdate,
   type Announcement,
@@ -19,6 +19,7 @@ import {
 import { APP_VERSION } from '@/config/version'
 import { Snackbar, Dialog } from '@varlet/ui'
 import FundCard from '@/components/FundCard.vue'
+import {formatPercent} from "@/utils/format.ts";
 
 const router = useRouter()
 const fundStore = useFundStore()
@@ -41,7 +42,7 @@ const tradingStatus = computed(() => {
   const hour = now.getHours()
   const minute = now.getMinutes()
   const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`
-  
+
   switch (session) {
     case 'morning':
       return { text: '交易中', subText: `上午盘 ${timeStr}`, class: 'trading', icon: 'live' }
@@ -112,11 +113,11 @@ async function loadRemoteConfig() {
   // [WHY] 如果已经加载过，直接返回，避免后台切换重复弹窗
   if (hasLoadedRemoteConfig) return
   hasLoadedRemoteConfig = true
-  
+
   try {
     const config = await fetchRemoteConfig()
     if (!config) return
-    
+
     // 检查更新
     const { needUpdate, forceUpdate } = checkNeedUpdate(APP_VERSION, config)
     if (needUpdate) {
@@ -127,15 +128,15 @@ async function loadRemoteConfig() {
         updateUrl: config.updateUrl
       }
     }
-    
+
     // 获取有效公告
     remoteAnnouncements.value = getActiveAnnouncements(config)
-    
+
     // 将远程公告添加到滚动公告
     if (remoteAnnouncements.value.length > 0) {
       const remoteNoticeTexts = remoteAnnouncements.value.map(a => `【${a.title}】${a.content.split('\n')[0]}`)
       notices.value = [...remoteNoticeTexts, ...defaultNotices]
-      
+
       // [WHY] 首次启动自动弹出第一个公告
       // [WHAT] 延迟 500ms 等待页面渲染完成后再弹出
       setTimeout(() => {
@@ -307,7 +308,7 @@ function submitAlert() {
     threshold,
     enabled: true
   })
-  
+
   Snackbar.success('提醒已设置')
   showAlertDialog.value = false
 }
@@ -329,14 +330,14 @@ function submitAlert() {
         <van-icon name="setting-o" size="22" @click="router.push('/alerts')" />
       </div>
     </div>
-    
+
     <!-- 公告栏 -->
     <div class="notice-bar">
       <van-icon name="volume-o" class="notice-icon" />
-      <van-swipe 
-        class="notice-swipe" 
-        vertical 
-        :autoplay="3000" 
+      <van-swipe
+        class="notice-swipe"
+        vertical
+        :autoplay="3000"
         :show-indicators="false"
         :touchable="false"
       >
@@ -345,7 +346,7 @@ function submitAlert() {
         </van-swipe-item>
       </van-swipe>
     </div>
-    
+
     <!-- 强制更新遮罩 -->
     <van-overlay :show="updateInfo?.forceUpdate" z-index="9999" class="force-update-overlay">
       <div class="force-update-content">
@@ -357,7 +358,7 @@ function submitAlert() {
         </van-button>
       </div>
     </van-overlay>
-    
+
     <!-- 更新提示卡片（普通更新） -->
     <div v-if="updateInfo?.needUpdate && !updateInfo?.forceUpdate" class="update-card">
       <div class="update-info">
@@ -369,18 +370,18 @@ function submitAlert() {
       </van-button>
       <van-icon name="cross" class="close-btn" @click="updateInfo = null" />
     </div>
-    
+
     <!-- 远程公告卡片 -->
     <div v-if="remoteAnnouncements.length > 0" class="announcement-cards">
-      <div 
-        v-for="announcement in remoteAnnouncements" 
+      <div
+        v-for="announcement in remoteAnnouncements"
         :key="announcement.id"
         class="announcement-card"
         :class="announcement.type"
         @click="openAnnouncement(announcement)"
       >
-        <van-icon 
-          :name="announcement.type === 'update' ? 'upgrade' : announcement.type === 'warning' ? 'warning-o' : 'info-o'" 
+        <van-icon
+          :name="announcement.type === 'update' ? 'upgrade' : announcement.type === 'warning' ? 'warning-o' : 'info-o'"
           size="18"
         />
         <span class="announcement-title">{{ announcement.title }}</span>
@@ -389,8 +390,8 @@ function submitAlert() {
     </div>
 
     <!-- 下拉刷新列表 -->
-    <van-pull-refresh 
-      v-model="fundStore.isRefreshing" 
+    <van-pull-refresh
+      v-model="fundStore.isRefreshing"
       @refresh="onRefresh"
       class="fund-list-container"
     >
@@ -407,9 +408,9 @@ function submitAlert() {
           </div>
         </div>
         <div class="index-grid">
-          <div 
-            v-for="index in indices" 
-            :key="index.code" 
+          <div
+            v-for="index in indices"
+            :key="index.code"
             class="index-item"
             :class="[index.change >= 0 ? 'up' : 'down']"
             @click="router.push('/market')"
@@ -420,13 +421,14 @@ function submitAlert() {
             </div>
             <div class="index-change">
               <van-icon :name="index.change >= 0 ? 'arrow-up' : 'arrow-down'" size="10" />
-              <span>{{ Math.abs(index.change).toFixed(2) }}%</span>
+              <span>{{ index.change >= 0 ? '+' : '' }}{{ index.change.toFixed(2) }}</span>
+              <span>{{ formatPercent(index.changePercent) }}</span>
             </div>
             <div class="index-bar"></div>
           </div>
         </div>
       </div>
-      
+
       <!-- 全球指数 -->
       <div class="global-indices" v-if="globalIndices.length > 0">
         <div class="section-header" @click="showGlobalIndices = !showGlobalIndices">
@@ -435,18 +437,18 @@ function submitAlert() {
         </div>
         <!-- [FIX] #35 优化全球指数排版 -->
         <div class="global-grid" v-show="showGlobalIndices">
-          <div 
-            v-for="idx in globalIndices" 
-            :key="idx.code" 
+          <div
+            v-for="idx in globalIndices"
+            :key="idx.code"
             class="global-item"
             :class="idx.price > 0 ? (idx.changePercent >= 0 ? 'up' : 'down') : 'no-data'"
           >
             <div class="global-name">
-              <span class="region-tag" :class="idx.region">{{ 
-                idx.region === 'cn' ? '中' : 
-                idx.region === 'hk' ? '港' : 
-                idx.region === 'us' ? '美' : 
-                idx.region === 'eu' ? '欧' : '亚' 
+              <span class="region-tag" :class="idx.region">{{
+                idx.region === 'cn' ? '中' :
+                idx.region === 'hk' ? '港' :
+                idx.region === 'us' ? '美' :
+                idx.region === 'eu' ? '欧' : '亚'
               }}</span>
               {{ idx.name }}
             </div>
@@ -465,7 +467,7 @@ function submitAlert() {
           点击展开查看全球指数行情
         </div>
       </div>
-      
+
       <!-- 快捷入口 -->
       <div class="quick-actions">
         <div class="action-item" @click="router.push('/search')">
@@ -517,7 +519,7 @@ function submitAlert() {
           <span>提醒</span>
         </div>
       </div>
-      
+
       <!-- 财经资讯 -->
       <div class="news-section">
         <div class="section-header">
@@ -525,9 +527,9 @@ function submitAlert() {
           <span class="view-more">更多 ></span>
         </div>
         <div class="news-list" v-if="!newsLoading && newsList.length > 0">
-          <div 
-            v-for="news in newsList" 
-            :key="news.id" 
+          <div
+            v-for="news in newsList"
+            :key="news.id"
             class="news-item"
             @click="openNews(news)"
           >
@@ -542,13 +544,13 @@ function submitAlert() {
         </div>
         <van-loading v-else-if="newsLoading" class="news-loading" />
       </div>
-      
+
       <!-- 自选基金标题 -->
       <div class="section-header" v-if="fundStore.watchlist.length > 0">
         <span class="section-title">自选基金</span>
         <span class="fund-count">{{ fundStore.watchlist.length }}只</span>
       </div>
-      
+
       <!-- 有自选基金时显示列表 -->
       <template v-if="fundStore.watchlist.length > 0">
         <!-- 刷新时间提示 -->
@@ -558,7 +560,7 @@ function submitAlert() {
             {{ alertStore.enabledAlerts.length }}个提醒
           </span>
         </div>
-        
+
         <!-- 基金列表 -->
         <FundCard
           v-for="fund in fundStore.watchlist"
@@ -580,7 +582,7 @@ function submitAlert() {
           添加基金
         </van-button>
       </van-empty>
-      
+
       <!-- 底部占位 -->
       <div class="bottom-spacer"></div>
     </van-pull-refresh>
@@ -593,7 +595,7 @@ function submitAlert() {
           <van-icon name="cross" @click="showAlertDialog = false" />
         </div>
         <div class="dialog-fund">{{ alertFund?.name }}</div>
-        
+
         <van-field label="提醒类型">
           <template #input>
             <van-radio-group v-model="alertForm.type" direction="horizontal">
@@ -603,24 +605,24 @@ function submitAlert() {
             </van-radio-group>
           </template>
         </van-field>
-        
+
         <van-field
           v-model="alertForm.threshold"
           :label="alertForm.type.includes('change') ? '阈值(%)' : '目标净值'"
           type="number"
           :placeholder="alertForm.type.includes('change') ? '例如: 3' : '例如: 1.5000'"
         />
-        
+
         <div class="dialog-footer">
           <van-button block type="primary" @click="submitAlert">确认设置</van-button>
         </div>
       </div>
     </van-popup>
-    
+
     <!-- 资讯详情弹窗 -->
-    <van-popup 
-      v-model:show="showNewsDetail" 
-      position="bottom" 
+    <van-popup
+      v-model:show="showNewsDetail"
+      position="bottom"
       round
       :style="{ height: '70%' }"
     >
@@ -651,7 +653,7 @@ function submitAlert() {
         </div>
       </div>
     </van-popup>
-    
+
     <!-- 公告详情弹窗 -->
     <van-popup
       v-model:show="showAnnouncementPopup"
@@ -661,8 +663,8 @@ function submitAlert() {
     >
       <div class="announcement-detail" v-if="currentAnnouncement">
         <div class="announcement-detail-header" :class="currentAnnouncement.type">
-          <van-icon 
-            :name="currentAnnouncement.type === 'update' ? 'upgrade' : currentAnnouncement.type === 'warning' ? 'warning-o' : 'info-o'" 
+          <van-icon
+            :name="currentAnnouncement.type === 'update' ? 'upgrade' : currentAnnouncement.type === 'warning' ? 'warning-o' : 'info-o'"
             size="24"
           />
           <h3>{{ currentAnnouncement.title }}</h3>
@@ -670,10 +672,10 @@ function submitAlert() {
         <div class="announcement-detail-content">
           <p v-for="(line, idx) in currentAnnouncement.content.split('\n')" :key="idx">
             <!-- [WHY] 检测 URL 并使其可点击 -->
-            <a 
-              v-if="line.startsWith('http')" 
-              :href="line" 
-              target="_blank" 
+            <a
+              v-if="line.startsWith('http')"
+              :href="line"
+              target="_blank"
               class="announcement-link"
               @click.stop
             >{{ line }}</a>
@@ -681,10 +683,10 @@ function submitAlert() {
           </p>
         </div>
         <div class="announcement-detail-footer">
-          <van-button 
-            v-if="currentAnnouncement.type === 'update'" 
-            block 
-            type="primary" 
+          <van-button
+            v-if="currentAnnouncement.type === 'update'"
+            block
+            type="primary"
             @click="goToUpdate(); closeAnnouncement()"
           >
             立即更新
